@@ -1,16 +1,33 @@
 <template>
-  <div class="app">
+  <div class="app" :class="{ dark: isDarkMode }">
     <header class="header">
       <h1 class="title">Activity Scheduler</h1>
+      <button @click="toggleTheme" class="theme-toggle">
+        {{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}
+      </button>
     </header>
     <main class="main-content">
+      <section class="filter-sort">
+        <input type="text" v-model="filterText" placeholder="Filter by name" class="filter-input" />
+        <select v-model="sortOption" @change="sortActivities" class="sort-select">
+          <option value="name">Sort by Name</option>
+          <option value="date">Sort by Date</option>
+        </select>
+        <select v-model="filterCategory" class="filter-select">
+          <option value="">All Categories</option>
+          <option v-for="category in categories" :key="category" :value="category">
+            {{ category }}
+          </option>
+        </select>
+      </section>
       <section class="activity-list">
         <h2 class="section-title">Upcoming Activities</h2>
         <ul class="activities">
-          <li v-for="activity in activities" :key="activity.id" class="activity">
+          <li v-for="activity in filteredActivities" :key="activity.id" class="activity">
             <div class="activity-info">
               <span class="activity-name">{{ activity.name }}</span>
               <span class="activity-date">{{ activity.date }}</span>
+              <span class="activity-category">{{ activity.category }}</span>
             </div>
             <div class="activity-actions">
               <button @click="editActivity(activity)" class="action-button edit-button">
@@ -34,6 +51,15 @@
             <label for="date" class="label">Date</label>
             <input type="date" v-model="newActivity.date" id="date" class="input" />
           </div>
+          <div class="form-group">
+            <label for="category" class="label">Category</label>
+            <select v-model="newActivity.category" id="category" class="input">
+              <option value="" disabled>Select a category</option>
+              <option v-for="category in categories" :key="category" :value="category">
+                {{ category }}
+              </option>
+            </select>
+          </div>
           <button type="submit" class="button">Add Activity</button>
         </form>
       </section>
@@ -49,43 +75,81 @@ export default {
   name: 'App',
   data() {
     return {
-      activities: [
-        { id: 1, name: 'Meeting with team', date: '2024-07-15' },
-        { id: 2, name: 'Project presentation', date: '2024-07-16' }
-      ],
+      activities: JSON.parse(localStorage.getItem('activities')) || [],
       newActivity: {
         name: '',
-        date: ''
-      }
+        date: '',
+        category: ''
+      },
+      filterText: '',
+      sortOption: 'name',
+      filterCategory: '',
+      categories: ['Work', 'Personal', 'Health', 'Other'], // Tambahkan kategori di sini
+      isDarkMode: false
+    }
+  },
+  computed: {
+    filteredActivities() {
+      return this.activities
+        .filter(
+          (activity) =>
+            activity.name.toLowerCase().includes(this.filterText.toLowerCase()) &&
+            (this.filterCategory === '' || activity.category === this.filterCategory)
+        )
+        .sort((a, b) => {
+          if (this.sortOption === 'date') {
+            return new Date(a.date) - new Date(b.date)
+          } else {
+            return a.name.localeCompare(b.name)
+          }
+        })
     }
   },
   methods: {
     addActivity() {
-      if (this.newActivity.name.trim() !== '' && this.newActivity.date.trim() !== '') {
-        this.activities.push({
+      if (
+        this.newActivity.name.trim() !== '' &&
+        this.newActivity.date.trim() !== '' &&
+        this.newActivity.category
+      ) {
+        const newActivity = {
           id: Date.now(),
           name: this.newActivity.name,
-          date: this.newActivity.date
-        })
+          date: this.newActivity.date,
+          category: this.newActivity.category
+        }
+        this.activities.push(newActivity)
+        this.saveToLocalStorage()
         this.newActivity.name = ''
         this.newActivity.date = ''
+        this.newActivity.category = ''
       } else {
-        alert('Please fill out both activity name and date.')
+        alert('Please fill out all fields: name, date, and category.')
       }
     },
     editActivity(activity) {
       const newName = prompt('Enter new name:', activity.name)
       const newDate = prompt('Enter new date (YYYY-MM-DD):', activity.date)
-      if (newName !== null && newDate !== null) {
+      const newCategory = prompt('Enter new category:', activity.category)
+      if (newName !== null && newDate !== null && newCategory !== null) {
         activity.name = newName
         activity.date = newDate
+        activity.category = newCategory
+        this.saveToLocalStorage()
       }
     },
     deleteActivity(activityId) {
       const confirmed = confirm('Are you sure you want to delete this activity?')
       if (confirmed) {
         this.activities = this.activities.filter((activity) => activity.id !== activityId)
+        this.saveToLocalStorage()
       }
+    },
+    saveToLocalStorage() {
+      localStorage.setItem('activities', JSON.stringify(this.activities))
+    },
+    toggleTheme() {
+      this.isDarkMode = !this.isDarkMode
     }
   }
 }
@@ -101,6 +165,12 @@ export default {
   background-color: #f0f0f0;
   margin: 0;
   padding: 0;
+  transition: background-color 0.3s;
+}
+
+.app.dark {
+  background-color: #333;
+  color: white;
 }
 
 /* Header styles */
@@ -114,18 +184,43 @@ export default {
   font-size: 2rem;
 }
 
+.theme-toggle {
+  margin-top: 10px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
 /* Main content styles */
 .main-content {
-  flex: 1; /* Memanjangkan konten utama untuk mengisi sisa ruang */
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 20px;
 }
 
-.section-title {
-  font-size: 1.5rem;
-  margin-bottom: 10px;
+/* Filter and Sort styles */
+.filter-sort {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.filter-input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  flex: 1;
+  margin-right: 10px;
+}
+
+.sort-select,
+.filter-select {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
 }
 
 /* Activity list styles */
@@ -156,11 +251,16 @@ export default {
 
 .activity-name {
   font-weight: bold;
-  margin-right: 10px; /* Jarak antara nama aktivitas dan tanggal */
+  margin-right: 10px;
 }
 
 .activity-date {
   color: #666;
+}
+
+.activity-category {
+  color: #888;
+  margin-left: 10px;
 }
 
 .activity-actions {
@@ -229,6 +329,6 @@ export default {
   color: black;
   padding: 20px;
   text-align: center;
-  margin-top: auto; /* Menetapkan margin atas auto untuk memposisikan footer di bagian bawah */
+  margin-top: auto;
 }
 </style>
